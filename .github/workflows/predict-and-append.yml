@@ -1,0 +1,39 @@
+name: Train & Predict → Append
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 2 * * *'  # every day 02:00 UTC (change as you like)
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: python -m pip install --upgrade pip && pip install -r requirements.txt
+
+      - name: Decode service account JSON
+        run: |
+          echo "${{ secrets.SERVICE_ACCOUNT_JSON_B64 }}" | base64 --decode > service_account.json
+
+      - name: Train model (creates models/model_pipeline.joblib)
+        env:
+          EXISTING_CSV: data/responses.csv
+        run: |
+          python train_model.py
+
+      - name: Run prediction & append to sheet
+        env:
+          SERVICE_ACCOUNT_FILE: service_account.json
+          MODEL_PIPELINE: models/model_pipeline.joblib
+          SPREADSHEET_URL: ${{ secrets.SPREADSHEET_URL }}
+          EXISTING_CSV: data/responses.csv
+        run: |
+          python append_predictions.py
